@@ -15,15 +15,19 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
 import { Pose } from "@mediapipe/pose";
-import { Camera } from "../utils/camera_utils.js"; // make sure path is correct
+import { Camera } from "../utils/camera_utils.js";
 import { FaceMesh } from "@mediapipe/face_mesh";
+import { defineEmits } from "vue";
 
+const emit = defineEmits(["status-update"]);
 const video = ref(null);
 const canvas = ref(null);
 let camera = null;
 let zoneOutCount = 0;
 let isLookingAwaySpoken = false;
 let isUserGoneSpoken = false;
+let latestPosture = "unknown";
+let cameraRunning = true
 
 function speak(text) {
   const synth = window.speechSynthesis;
@@ -52,12 +56,14 @@ function calculatePostureScore(landmarks) {
 
   // Logging for debug
   console.log(
-    "Z forward lean:", forwardZ.toFixed(3),
-    "Vertical drop:", verticalDrop.toFixed(3)
+    "Z forward lean:",
+    forwardZ.toFixed(3),
+    "Vertical drop:",
+    verticalDrop.toFixed(3)
   );
 
-  const isForwardHead = forwardZ < -0.9;      // more negative = forward
-  const isHeadDropped = verticalDrop > -0.20;   // head lower than shoulder
+  const isForwardHead = forwardZ < -0.9; // more negative = forward
+  const isHeadDropped = verticalDrop > -0.2; // head lower than shoulder
 
   if (isForwardHead || isHeadDropped) {
     return "slouching";
@@ -72,27 +78,27 @@ function isLookingAway(landmarks) {
   const leftEye = landmarks[33]; // outer corner of left eye
   const rightEye = landmarks[263]; // outer corner of right eye
   const nose = landmarks[1];
-  const chin=landmarks[152];
-  const forehead=landmarks[10];
+  const chin = landmarks[152];
+  const forehead = landmarks[10];
 
   const eyeMidX = (leftEye.x + rightEye.x) / 2;
   const deviationSide = Math.abs(eyeMidX - nose.x); // how centered is the nose?
 
-
-  const verticalDistance = Math.abs(chin.y-forehead.y);
+  const verticalDistance = Math.abs(chin.y - forehead.y);
 
   const dx = chin.x - forehead.x;
   const dy = chin.y - forehead.y;
 
-  const deviationUpDown = Math.atan2(dy,dx) * (180/Math.PI);
-  console.log("deviationUpDown",deviationUpDown);
-  console.log("verticalDistance",verticalDistance);
+  const deviationUpDown = Math.atan2(dy, dx) * (180 / Math.PI);
+  console.log("deviationUpDown", deviationUpDown);
+  console.log("verticalDistance", verticalDistance);
 
-  const isDeviation = (deviationSide > 0.01) || (deviationUpDown > 90 && verticalDistance < 0.25);
+  const isDeviation =
+    deviationSide > 0.01 || (deviationUpDown > 90 && verticalDistance < 0.25);
 
   console.log(isDeviation);
- 
-  return isDeviation 
+
+  return isDeviation;
 }
 
 onMounted(() => {
@@ -125,8 +131,8 @@ onMounted(() => {
     ctx.drawImage(results.image, 0, 0, canvas.value.width, canvas.value.height);
 
     if (results.poseLandmarks) {
-      const postureStatus = calculatePostureScore(results.poseLandmarks);
-      console.log("Posture:", postureStatus);
+      latestPosture = calculatePostureScore(results.poseLandmarks);
+      console.log("Posture:", latestPosture);
     }
   });
   // faceMesh.onResults((results) => {
@@ -149,29 +155,35 @@ onMounted(() => {
   //   }
   // });
 
-  faceMesh.onResults((results) =>{
+  faceMesh.onResults((results) => {
     if (results.multiFaceLandmarks) {
-    const face = results.multiFaceLandmarks[0];
-    const isZonedOut = isLookingAway(face);
+      const face = results.multiFaceLandmarks[0];
+      const isZonedOut = isLookingAway(face);
 
-      if(isZonedOut){
+      if (isZonedOut) {
         zoneOutCount++;
-        if(zoneOutCount >5 && !isLookingAwaySpoken){
+        if (zoneOutCount > 5 && !isLookingAwaySpoken) {
           speak("You're looking away. Please refocus.");
           isLookingAwaySpoken = true;
           zoneOutCount = 0;
         }
-      }
-      else{
+      } else {
         zoneOutCount = 0;
         isLookingAwaySpoken = false;
       }
-  }})
+      emit("status-update", {
+        timestamp: Date.now(),
+        posture: latestPosture,
+        attention: isZonedOut ? "distracted" : "focused",
+      });
+    }
+  });
 
   camera = new Camera(video.value, {
     onFrame: async () => {
-      await pose.send({ image: video.value });
-      await faceMesh.send({ image: video.value });
+    if (!cameraRunning) return
+    await pose.send({ image: video.value });
+    await faceMesh.send({ image: video.value });
     },
     width: 640,
     height: 480,
@@ -181,21 +193,22 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  console.log("Cleaning up camera and speech...")
+  cameraRunning = false
+  console.log("Cleaning up camera and speech...");
 
   // Stop camera stream
   if (video.value && video.value.srcObject) {
-    const tracks = video.value.srcObject.getTracks()
-    tracks.forEach(track => track.stop())
-    video.value.srcObject = null
+    const tracks = video.value.srcObject.getTracks();
+    tracks.forEach((track) => track.stop());
+    video.value.srcObject = null;
   }
 
   // Stop any ongoing speech synthesis
-  window.speechSynthesis.cancel()
+  window.speechSynthesis.cancel();
 
   // Optional: Stop camera processing loop if needed
   if (camera && camera.stop) {
-    camera.stop()
+    camera.stop();
   }
 });
 </script>
