@@ -31,63 +31,40 @@ function speak(text) {
   synth.speak(utterance);
 }
 
-// function calculatePostureScore(landmarks) {
-//   const leftShoulder = landmarks[11];
-//   const rightShoulder = landmarks[12];
-//   const leftHip = landmarks[23];
-//   const rightHip = landmarks[24];
-
-//   const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-//   const avgHipY = (leftHip.y + rightHip.y) / 2;
-
-//   const deltaY = avgHipY - avgShoulderY;
-//   return deltaY > 0.15 ? "slouching" : "good";
-// }
-
 function calculatePostureScore(landmarks) {
-  if (!landmarks || landmarks.length < 25) return "unknown"
+  if (!landmarks || landmarks.length < 13) return "unknown";
 
-  const leftShoulder = landmarks[11]
-  const rightShoulder = landmarks[12]
-  const leftHip = landmarks[23]
-  const rightHip = landmarks[24]
+  const nose = landmarks[0];
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
 
-  // Midpoints of shoulders and hips
-  const midShoulder = {
+  const avgShoulder = {
     x: (leftShoulder.x + rightShoulder.x) / 2,
     y: (leftShoulder.y + rightShoulder.y) / 2,
     z: (leftShoulder.z + rightShoulder.z) / 2,
-  }
-  const midHip = {
-    x: (leftHip.x + rightHip.x) / 2,
-    y: (leftHip.y + rightHip.y) / 2,
-    z: (leftHip.z + rightHip.z) / 2,
-  }
+  };
 
-  // Slope of vector (for side leaning)
-  const dx = midHip.x - midShoulder.x
-  const dy = midHip.y - midShoulder.y
-  const dz = midHip.z - midShoulder.z
+  // Forward head posture detection (nose in front of shoulders)
+  const forwardZ = nose.z - avgShoulder.z;
 
-  // Side angle: horizontal lean (X-axis)
-  const sideAngleDeg = Math.atan2(dx, dy) * (180 / Math.PI)
+  // Head tilt detection (neck strain)
+  const verticalDrop = nose.y - avgShoulder.y;
 
-  // Forward slouch detection using depth (Z-axis)
-  const zSlouchThreshold = -0.1
-  const zDifference = midShoulder.z - midHip.z
+  // Logging for debug
+  console.log(
+    "Z forward lean:", forwardZ.toFixed(3),
+    "Vertical drop:", verticalDrop.toFixed(3)
+  );
 
-  const isSideLeaning = Math.abs(sideAngleDeg) > 1   // side tilt threshold
-  const isForwardSlouching = zDifference < zSlouchThreshold  // slouched forward
-  console.log("Z diff:", zDifference.toFixed(3), "Side angle:", sideAngleDeg.toFixed(2))
+  const isForwardHead = forwardZ < -0.9;      // more negative = forward
+  const isHeadDropped = verticalDrop > -0.20;   // head lower than shoulder
 
-  if (isSideLeaning || isForwardSlouching) {
-    return "slouching"
+  if (isForwardHead || isHeadDropped) {
+    return "slouching";
   } else {
-    return "good"
+    return "good";
   }
-  // < -0.2 - then slouch
 }
-
 
 function isLookingAway(landmarks) {
   if (!landmarks || landmarks.length < 468) return false;
@@ -95,12 +72,27 @@ function isLookingAway(landmarks) {
   const leftEye = landmarks[33]; // outer corner of left eye
   const rightEye = landmarks[263]; // outer corner of right eye
   const nose = landmarks[1];
+  const chin=landmarks[152];
+  const forehead=landmarks[10];
 
   const eyeMidX = (leftEye.x + rightEye.x) / 2;
-  const deviation = Math.abs(eyeMidX - nose.x); // how centered is the nose?
+  const deviationSide = Math.abs(eyeMidX - nose.x); // how centered is the nose?
 
-  // Lower value = looking straight; higher = head turned
-  return deviation > 0.06; // tune threshold, 0.05–0.07 often works
+
+  const verticalDistance = Math.abs(chin.y-forehead.y);
+
+  const dx = chin.x - forehead.x;
+  const dy = chin.y - forehead.y;
+
+  const deviationUpDown = Math.atan2(dy,dx) * (180/Math.PI);
+  console.log("deviationUpDown",deviationUpDown);
+  console.log("verticalDistance",verticalDistance);
+
+  const isDeviation = (deviationSide > 0.01) || (deviationUpDown > 90 && verticalDistance < 0.25);
+
+  console.log(isDeviation);
+ 
+  return isDeviation 
 }
 
 onMounted(() => {
@@ -137,25 +129,44 @@ onMounted(() => {
       console.log("Posture:", postureStatus);
     }
   });
-  faceMesh.onResults((results) => {
-    if (results.multiFaceLandmarks) {
-      const face = results.multiFaceLandmarks[0];
-      const away = isLookingAway(face);
-      console.log("Attention:", away ? "Away" : "Focused");
+  // faceMesh.onResults((results) => {
+  //   if (results.multiFaceLandmarks) {
+  //     const face = results.multiFaceLandmarks[0];
+  //     const away = isLookingAway(face);
+  //     console.log("Attention:", away ? "Away" : "Focused");
 
-      if (away) {
+  //     if (away) {
+  //       zoneOutCount++;
+  //       if (zoneOutCount >= 5 && !isLookingAwaySpoken) {
+  //         speak("You're looking away. Please refocus.");
+  //         isLookingAwaySpoken = true;
+  //         zoneOutCount = 0;
+  //       }
+  //     } else {
+  //       zoneOutCount = 0;
+  //       isLookingAwaySpoken = false; // reset flag when focused again
+  //     }
+  //   }
+  // });
+
+  faceMesh.onResults((results) =>{
+    if (results.multiFaceLandmarks) {
+    const face = results.multiFaceLandmarks[0];
+    const isZonedOut = isLookingAway(face);
+
+      if(isZonedOut){
         zoneOutCount++;
-        if (zoneOutCount >= 5 && !isLookingAwaySpoken) {
+        if(zoneOutCount >5 && !isLookingAwaySpoken){
           speak("You're looking away. Please refocus.");
           isLookingAwaySpoken = true;
           zoneOutCount = 0;
         }
-      } else {
-        zoneOutCount = 0;
-        isLookingAwaySpoken = false; // reset flag when focused again
       }
-    }
-  });
+      else{
+        zoneOutCount = 0;
+        isLookingAwaySpoken = false;
+      }
+  }})
 
   camera = new Camera(video.value, {
     onFrame: async () => {
