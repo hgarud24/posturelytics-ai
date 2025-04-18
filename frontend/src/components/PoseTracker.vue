@@ -20,14 +20,17 @@ import { FaceMesh } from "@mediapipe/face_mesh";
 import { defineEmits } from "vue";
 
 const emit = defineEmits(["status-update"]);
+
 const video = ref(null);
 const canvas = ref(null);
+
 let camera = null;
 let zoneOutCount = 0;
 let isLookingAwaySpoken = false;
-let isUserGoneSpoken = false;
+
 let latestPosture = "unknown";
-let cameraRunning = true
+let latestAttention = "unknown";
+let cameraRunning = true;
 
 function speak(text) {
   const synth = window.speechSynthesis;
@@ -48,55 +51,34 @@ function calculatePostureScore(landmarks) {
     z: (leftShoulder.z + rightShoulder.z) / 2,
   };
 
-  // Forward head posture detection (nose in front of shoulders)
   const forwardZ = nose.z - avgShoulder.z;
-
-  // Head tilt detection (neck strain)
   const verticalDrop = nose.y - avgShoulder.y;
 
-  // Logging for debug
-  console.log(
-    "Z forward lean:",
-    forwardZ.toFixed(3),
-    "Vertical drop:",
-    verticalDrop.toFixed(3)
-  );
+  const isForwardHead = forwardZ < -0.9;
+  const isHeadDropped = verticalDrop > -0.2;
 
-  const isForwardHead = forwardZ < -0.9; // more negative = forward
-  const isHeadDropped = verticalDrop > -0.2; // head lower than shoulder
-
-  if (isForwardHead || isHeadDropped) {
-    return "slouching";
-  } else {
-    return "good";
-  }
+  return isForwardHead || isHeadDropped ? "slouching" : "good";
 }
 
 function isLookingAway(landmarks) {
   if (!landmarks || landmarks.length < 468) return false;
 
-  const leftEye = landmarks[33]; // outer corner of left eye
-  const rightEye = landmarks[263]; // outer corner of right eye
+  const leftEye = landmarks[33];
+  const rightEye = landmarks[263];
   const nose = landmarks[1];
   const chin = landmarks[152];
   const forehead = landmarks[10];
 
   const eyeMidX = (leftEye.x + rightEye.x) / 2;
-  const deviationSide = Math.abs(eyeMidX - nose.x); // how centered is the nose?
+  const deviationSide = Math.abs(eyeMidX - nose.x);
 
   const verticalDistance = Math.abs(chin.y - forehead.y);
-
   const dx = chin.x - forehead.x;
   const dy = chin.y - forehead.y;
-
   const deviationUpDown = Math.atan2(dy, dx) * (180 / Math.PI);
-  console.log("deviationUpDown", deviationUpDown);
-  console.log("verticalDistance", verticalDistance);
 
   const isDeviation =
     deviationSide > 0.01 || (deviationUpDown > 90 && verticalDistance < 0.25);
-
-  console.log(isDeviation);
 
   return isDeviation;
 }
@@ -132,33 +114,15 @@ onMounted(() => {
 
     if (results.poseLandmarks) {
       latestPosture = calculatePostureScore(results.poseLandmarks);
-      console.log("Posture:", latestPosture);
     }
   });
-  // faceMesh.onResults((results) => {
-  //   if (results.multiFaceLandmarks) {
-  //     const face = results.multiFaceLandmarks[0];
-  //     const away = isLookingAway(face);
-  //     console.log("Attention:", away ? "Away" : "Focused");
-
-  //     if (away) {
-  //       zoneOutCount++;
-  //       if (zoneOutCount >= 5 && !isLookingAwaySpoken) {
-  //         speak("You're looking away. Please refocus.");
-  //         isLookingAwaySpoken = true;
-  //         zoneOutCount = 0;
-  //       }
-  //     } else {
-  //       zoneOutCount = 0;
-  //       isLookingAwaySpoken = false; // reset flag when focused again
-  //     }
-  //   }
-  // });
 
   faceMesh.onResults((results) => {
     if (results.multiFaceLandmarks) {
       const face = results.multiFaceLandmarks[0];
       const isZonedOut = isLookingAway(face);
+
+      latestAttention = isZonedOut ? "distracted" : "focused";
 
       if (isZonedOut) {
         zoneOutCount++;
@@ -171,19 +135,23 @@ onMounted(() => {
         zoneOutCount = 0;
         isLookingAwaySpoken = false;
       }
-      emit("status-update", {
-        timestamp: Date.now(),
-        posture: latestPosture,
-        attention: isZonedOut ? "distracted" : "focused",
-      });
+    } else {
+      latestAttention = "absent";
     }
   });
 
   camera = new Camera(video.value, {
     onFrame: async () => {
-    if (!cameraRunning) return
-    await pose.send({ image: video.value });
-    await faceMesh.send({ image: video.value });
+      if (!cameraRunning) return;
+
+      await pose.send({ image: video.value });
+      await faceMesh.send({ image: video.value });
+
+      emit("status-update", {
+        timestamp: new Date().toISOString(),
+        posture: latestPosture,
+        attention: latestAttention,
+      });
     },
     width: 640,
     height: 480,
@@ -193,20 +161,16 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  cameraRunning = false
-  console.log("Cleaning up camera and speech...");
+  cameraRunning = false;
 
-  // Stop camera stream
   if (video.value && video.value.srcObject) {
     const tracks = video.value.srcObject.getTracks();
     tracks.forEach((track) => track.stop());
     video.value.srcObject = null;
   }
 
-  // Stop any ongoing speech synthesis
   window.speechSynthesis.cancel();
 
-  // Optional: Stop camera processing loop if needed
   if (camera && camera.stop) {
     camera.stop();
   }

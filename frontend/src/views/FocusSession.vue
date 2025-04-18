@@ -25,6 +25,7 @@
       <!-- Add more charts if needed -->
       <PieChartD3 :data="focusStats" title="Focus vs Distraction" />
       <PieChartD3 :data="postureStats" title="Posture Quality" />
+      <PostureLineChart :logs="sessionLogs" />
     </div>
 
     <PoseTracker v-if="sessionActive" @status-update="handleStatusUpdate" />
@@ -34,7 +35,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import PoseTracker from "../components/PoseTracker.vue";
-import ObservablePie from "../components/ObservablePie.vue";
+import PostureLineChart from "../components/ObservableLinechart.vue";
 import PieChartD3 from "../components/PieChartD3.vue";
 import axios from "axios";
 
@@ -51,8 +52,11 @@ const sessionComplete = ref(false);
 function handleStatusUpdate(data) {
   if (sessionActive.value) {
     sessionLogs.value.push(data);
+    console.log("sessionLogs",sessionLogs)
   }
 }
+
+
 
 function startSession() {
   sessionDuration.value = sessionDurationMinutes.value * 60;
