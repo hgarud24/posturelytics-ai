@@ -46,6 +46,8 @@ const sessionLogs = ref([]);
 let timerInterval = null;
 const sessionComplete = ref(false);
 
+// const token = localStorage.getItem('token')
+
 function handleStatusUpdate(data) {
   if (sessionActive.value) {
     sessionLogs.value.push(data);
@@ -103,12 +105,19 @@ async function endSession() {
   console.log(`Duration: ${sessionDuration.value / 60} minutes`);
   console.log(`Total Logs Collected: ${sessionLogs.value.length}`);
   console.log("Sample Log:", sessionLogs.value.slice(0, 5));
+  
+
+  const token = localStorage.getItem('token')
 
   try {
-    await axios.post("http://127.0.0.1:8000/api/session", sessionData);
-    console.log("Session data uploaded successfully!");
+    await axios.post("http://127.0.0.1:8000/api/session", sessionData, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+    console.log("Session saved")
   } catch (err) {
-    console.error("Failed to upload session data:", err);
+    console.error("Failed to save session:", err)
   }
 }
 
