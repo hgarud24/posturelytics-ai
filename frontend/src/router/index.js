@@ -2,12 +2,15 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Login from '../views/Login.vue'
 import Signup from '../views/Signup.vue'
 import FocusSession from '../views/FocusSession.vue'
+import Home from '../views/Home.vue'
 
 const routes = [
-  { path: '/', redirect: '/login' },
+  { path: '/', redirect: '/home' },
   { path: '/login', component: Login },
   { path: '/signup', component: Signup },
-  { path: '/focus', component: FocusSession }
+  { path: '/focus', component: FocusSession },
+  { path: '/home', component: Home }
+
 ]
 
 const router = createRouter({
@@ -16,7 +19,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-    const publicPages = ['/login', '/signup']
+    const publicPages = ['/login', '/signup' , '/home']
     const authRequired = !publicPages.includes(to.path)
     const token = localStorage.getItem('token')
   
