@@ -20,6 +20,11 @@
     </div>
     <div v-if="sessionComplete">
       <h2>Session Summary</h2>
+      <div class="feedback-box">
+        <h3>AI Feedback</h3>
+        <p>{{ gptFeedback }}</p>
+      </div>
+
       <!-- <ObservablePie :data="focusStats" title="Focus vs Distraction" />
       <ObservablePie :data="postureStats" title="Posture Quality" /> -->
       <!-- Add more charts if needed -->
@@ -46,17 +51,16 @@ const sessionDurationMinutes = ref(25); // default duration
 const sessionLogs = ref([]);
 let timerInterval = null;
 const sessionComplete = ref(false);
+const gptFeedback = ref("");
 
 // const token = localStorage.getItem('token')
 
 function handleStatusUpdate(data) {
   if (sessionActive.value) {
     sessionLogs.value.push(data);
-    console.log("sessionLogs",sessionLogs)
+    console.log("sessionLogs", sessionLogs);
   }
 }
-
-
 
 function startSession() {
   sessionDuration.value = sessionDurationMinutes.value * 60;
@@ -109,42 +113,54 @@ async function endSession() {
   console.log(`Duration: ${sessionDuration.value / 60} minutes`);
   console.log(`Total Logs Collected: ${sessionLogs.value.length}`);
   console.log("Sample Log:", sessionLogs.value.slice(0, 5));
-  
 
-  const token = localStorage.getItem('token')
+  const token = localStorage.getItem("token");
 
   try {
     await axios.post("http://127.0.0.1:8000/api/session", sessionData, {
       headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-    console.log("Session saved")
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    console.log("Session saved");
   } catch (err) {
-    console.error("Failed to save session:", err)
+    console.error("Failed to save session:", err);
   }
+
+  const res = await axios.post(
+    "http://127.0.0.1:8000/api/session",
+    sessionData,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  console.log("Session saved");
+  gptFeedback.value = res.data.feedback || "No feedback received.";
 }
 
 const focusStats = computed(() => {
-  const focused = sessionLogs.value.filter(l => l.attention === 'focused').length
-  const distracted = sessionLogs.value.length - focused
+  const focused = sessionLogs.value.filter(
+    (l) => l.attention === "focused"
+  ).length;
+  const distracted = sessionLogs.value.length - focused;
 
   return [
     { label: "Focused", value: focused },
-    { label: "Distracted", value: distracted }
-  ]
-})
+    { label: "Distracted", value: distracted },
+  ];
+});
 
 const postureStats = computed(() => {
-  const good = sessionLogs.value.filter(l => l.posture === 'good').length
-  const slouch = sessionLogs.value.length - good
+  const good = sessionLogs.value.filter((l) => l.posture === "good").length;
+  const slouch = sessionLogs.value.length - good;
 
   return [
     { label: "Good", value: good },
-    { label: "Slouching", value: slouch }
-  ]
-})
-
+    { label: "Slouching", value: slouch },
+  ];
+});
 </script>
 
 <style scoped>
@@ -158,5 +174,13 @@ input {
   margin-left: 10px;
   width: 60px;
   padding: 5px;
+}
+.feedback-box {
+  background: #f5f5f5;
+  border-left: 6px solid #4caf50;
+  padding: 1rem;
+  margin-top: 1.5rem;
+  font-style: italic;
+  border-radius: 6px;
 }
 </style>

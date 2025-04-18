@@ -3,6 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.db.connection import connect_to_mongo
 from backend.routes.session import router as session_router 
 from backend.routes.users import router as user_router
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
 
 
 app = FastAPI()
