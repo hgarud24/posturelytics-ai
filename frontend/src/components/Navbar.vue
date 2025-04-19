@@ -33,19 +33,26 @@
 </v-container>
 </template>
 
-
-
 <script setup>
 import { useRouter } from "vue-router";
-import { computed, defineAsyncComponent } from "vue";
+import { computed, defineAsyncComponent, watchEffect, ref } from "vue";
+import { isLoggedIn } from '@/composables/auth';
+
 
 const router = useRouter();
-const isLoggedIn = computed(() => !!localStorage.getItem("token"));
+// export const isLoggedIn = ref(!!localStorage.getItem("token"))
+
+window.addEventListener("storage", () => {
+  isLoggedIn.value = !!localStorage.getItem("token")
+})
 
 function logout() {
   localStorage.removeItem("token");
+  isLoggedIn.value = false;
   router.push("/login");
 }
+
+
 </script>
 
 <style scoped>

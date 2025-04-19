@@ -45,6 +45,7 @@
 import { ref } from "vue";
 import axios from "axios";
 import { useRouter } from "vue-router";
+import { isLoggedIn } from '@/composables/auth';
 
 const router = useRouter();
 const email = ref("");
@@ -59,6 +60,7 @@ async function login() {
     });
     localStorage.setItem("token", res.data.token);
     message.value = "Login successful! Token stored.";
+    isLoggedIn.value = true;
     setTimeout(() => router.push("/focus"), 1000);
   } catch (err) {
     message.value = err.response?.data?.detail || "Login failed";
