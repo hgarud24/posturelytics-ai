@@ -59,4 +59,3 @@ async def save_session(data: dict = Body(...), user_email: str = Depends(get_cur
         "id": str(result.inserted_id),
         "feedback": feedback
     }
-

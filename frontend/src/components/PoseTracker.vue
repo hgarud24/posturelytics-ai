@@ -18,6 +18,8 @@ import { Pose } from "@mediapipe/pose";
 import { Camera } from "../utils/camera_utils.js";
 import { FaceMesh } from "@mediapipe/face_mesh";
 import { defineEmits } from "vue";
+import { severity } from "../stores/severityStore.js"
+
 
 const emit = defineEmits(["status-update"]);
 
@@ -146,6 +148,18 @@ onMounted(() => {
 
       await pose.send({ image: video.value });
       await faceMesh.send({ image: video.value });
+
+      if (latestPosture === "slouching") {
+        severity.trp1 = Math.min(1.0, severity.trp1 + 0.05);
+        severity.trp2L = Math.min(1.0, severity.trp2L + 0.05);
+        severity.trp2R = Math.min(1.0, severity.trp2R + 0.05);
+        severity.trp3 = Math.min(1.0, severity.trp3 + 0.03);
+      } else if (latestPosture === "good") {
+        severity.trp1 = Math.max(0, severity.trp1 - 0.01);
+        severity.trp2L = Math.max(0, severity.trp2L - 0.01);
+        severity.trp2R = Math.max(0, severity.trp2R - 0.01);
+        severity.trp3 = Math.max(0, severity.trp3 - 0.01);
+      }
 
       emit("status-update", {
         timestamp: new Date().toISOString(),
