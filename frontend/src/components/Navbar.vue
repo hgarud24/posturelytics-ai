@@ -1,29 +1,46 @@
 <template>
-  <nav class="navbar">
-    <div class="navbar-container">
-      <!-- Logo -->
-      <span class="logo">Posturelytics.AI</span>
+  <v-container>
+  <v-app-bar app class="navbar">
+  <router-link to="/">
+    <img src="../assets/logo.png" alt="Posturelytics Logo" class="logo" />
+  </router-link>
 
-      <!-- Links -->
-      <ul class="nav-links">
-        <li>
-          <router-link to="/home" class="nav-link">Home</router-link>
-        </li>
-        <li>
-          <router-link to="/focus" class="nav-link">Productivity</router-link>
-        </li>
-        <li>
-          <button @click="logout" class="logout-button">Logout</button>
-        </li>
-      </ul>
-    </div>
-  </nav>
+    <v-spacer></v-spacer>
+    <template v-if="isLoggedIn">
+      <RouterLink to="/" custom v-slot="{ navigate }">
+        <v-btn text @click="navigate">Home</v-btn>
+      </RouterLink>
+      <RouterLink to="/focus" custom v-slot="{ navigate }">
+        <v-btn text @click="navigate">Productivity</v-btn>
+      </RouterLink>
+      <RouterLink to="/dashboard" custom v-slot="{ navigate }">
+        <v-btn text @click="navigate">Dashboard</v-btn>
+      </RouterLink>
+      <v-btn text @click="logout">Logout</v-btn>
+    </template>
+    <template v-else>
+      <RouterLink to="/" custom v-slot="{ navigate }">
+        <v-btn text @click="navigate">Home</v-btn>
+      </RouterLink>
+      <RouterLink to="/login" custom v-slot="{ navigate }">
+        <v-btn text @click="navigate">Login</v-btn>
+      </RouterLink>
+      <RouterLink to="/signup" custom v-slot="{ navigate }">
+        <v-btn text @click="navigate">Signup</v-btn>
+      </RouterLink>
+    </template>
+  </v-app-bar>
+</v-container>
 </template>
+
+
 
 <script setup>
 import { useRouter } from "vue-router";
+import { computed, defineAsyncComponent } from "vue";
 
 const router = useRouter();
+const isLoggedIn = computed(() => !!localStorage.getItem("token"));
 
 function logout() {
   localStorage.removeItem("token");
@@ -34,13 +51,16 @@ function logout() {
 <style scoped>
 /* Base font */
 .navbar {
-  font-family: "Inter", sans-serif;
-  background-color: #1f2937; /* Dark gray */
-  color: white;
-  padding: 12px 16px;
+  background-color: #1a2542 !important; /* <-- override Vuetify styles */
+  color: white !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
-
+.logo{
+  width: 280px;
+  height: 70px;
+  padding: 4px 16px;
+}
+/* 
 .navbar-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -65,17 +85,18 @@ function logout() {
   align-items: center;
   margin: 0;
   padding: 0;
-}
+} */
 
-.nav-link {
+/* .nav-link {
   color: white;
   text-decoration: none;
   font-size: 0.95rem;
   transition: color 0.2s ease;
-}
+} */
 
+/* 
 .nav-link:hover {
-  color: #60a5fa; /* soft blue */
+  color: #60a5fa; 
 }
 
 .logout-button {
@@ -91,5 +112,5 @@ function logout() {
 
 .logout-button:hover {
   background-color: #dc2626;
-}
+} */
 </style>
